@@ -1,5 +1,6 @@
 from typing import Union, Optional, Dict, List, Any
 from bs4 import BeautifulSoup
+from pathlib import Path
 import httpx
 
 try:
@@ -25,14 +26,15 @@ class Bandcamp:
 
     self.albums = []
 
-  async def getAlbums() -> dict:
+  async def getAlbums(self, author: str) -> dict:
     pass
 
   async def getAlbumInfo(self, author: str, album: str) -> dict:
-    async with self.session:
-      res = await self.session.get(Bandcamp.generateAlbumUrl(author, album))
+    res = None
+    async with self.session as cl:
+      res = await cl.get(Bandcamp.generateAlbumUrl(author, album))
     if res.status_code != 200:
-      raise RuntimeError(f"{Bandcamp.generateAlbumLog(author, album)}请求失败，返回码：${res.status_code}")
+      raise RuntimeError(f"Request {Bandcamp.generateAlbumLog(author, album)} failed, HTTP status code: ${res.status_code}")
     
     self.soup = BeautifulSoup(res.text, "html.parser")
 
@@ -45,6 +47,8 @@ class Bandcamp:
 
     albumInfo = {
       "id": rawAlbumInfo["id"],
+      "internal": album,
+      "cover": self.soup.find("link", { "rel": "image_src" }).attrs["href"],
       "title": rawAlbumInfo["current"]["title"],
       "author": rawAlbumInfo["artist"],
       "songs": []
@@ -61,9 +65,30 @@ class Bandcamp:
         print(f"{i + 1}: {Bandcamp.generateMusicLog(albumInfo['author'], albumInfo['title'], song['title'])}")
 
     return albumInfo
+  
+  async def addAlbum(self, author: str, album: str) -> dict:
+    albumInfo = await self.getAlbumInfo(author, album)
+    self.albums.append(albumInfo)
+    return albumInfo
 
-  async def downloadMusic(self, url: str) -> None:
-    pass
+  async def download(self, url: str) -> None:
+    res = None
+    async with self.session as cl:
+      res = await cl.get(url)
+    if res.status_code != 200:
+      raise RuntimeError(f"Request {Bandcamp.generateAlbumLog(author, album)} failed, HTTP status code: ${res.status_code}")
+    
+    return res.content
+    
+  async def downloadAlbums(self) -> None:
+    for album in self.albums:
+      print(f"Downloading {self.generateAlbumLog(album['author'], album['title'])}")
+      folder = Path(album["internal"])
+      folder.mkdir(parents=True, exist_ok=True)
+      
+      for song in album["songs"]:
+        with (folder / Path(song["title"] + ".mp3")).open("wb") as f:
+          f.write(await self.download(song["file"]))
 
   @staticmethod
   def generateAuthorUrl(author: str) -> str:
