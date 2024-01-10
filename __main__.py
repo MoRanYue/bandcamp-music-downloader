@@ -3,7 +3,7 @@ from bandcamp import Bandcamp
 
 async def main():
   bandcamp = Bandcamp()
-  await bandcamp.addAlbum("slowedandreverb", "the-abstractrooms")
+  await bandcamp.addAllAlbums("slowedandreverb")
   await bandcamp.downloadAlbums()
 
 if __name__ == '__main__':
